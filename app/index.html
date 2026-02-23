@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fall Detection AI</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f0f1a; color: #e0e0f0;
+      min-height: 100vh; display: flex; flex-direction: column;
+      align-items: center; padding: 40px 20px;
+    }
+    header { text-align: center; margin-bottom: 40px; }
+    header h1 {
+      font-size: 2.4rem; font-weight: 700;
+      background: linear-gradient(135deg, #7c6aff, #e040fb);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    header p { margin-top: 8px; color: #888; font-size: 0.95rem; }
+    .card {
+      background: #16162a; border: 1px solid #2a2a4a; border-radius: 20px;
+      padding: 32px; width: 100%; max-width: 680px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+    }
+
+    /* ── Tab Switch ── */
+    .tab-row {
+      display: flex; gap: 0; margin-bottom: 24px;
+      border: 1px solid #2a2a4a; border-radius: 12px; overflow: hidden;
+    }
+    .tab-btn {
+      flex: 1; padding: 12px; border: none; cursor: pointer;
+      font-size: 0.92rem; font-weight: 600; transition: all 0.2s;
+      background: transparent; color: #666;
+    }
+    .tab-btn.active { background: linear-gradient(135deg, #7c6aff, #e040fb); color: #fff; }
+    .tab-btn:not(.active):hover { background: #1e1e38; color: #aaa; }
+
+    /* ── Upload Zone ── */
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    .upload-zone {
+      border: 2px dashed #3a3a6a; border-radius: 14px; padding: 48px 24px;
+      text-align: center; cursor: pointer; transition: all 0.2s; position: relative;
+    }
+    .upload-zone:hover, .upload-zone.drag-over {
+      border-color: #7c6aff; background: rgba(124,106,255,0.05);
+    }
+    .upload-zone input[type="file"] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+    .upload-icon { font-size: 3rem; margin-bottom: 12px; }
+    .upload-zone h3 { font-size: 1.1rem; color: #ccc; margin-bottom: 6px; }
+    .upload-zone p  { font-size: 0.82rem; color: #666; }
+
+    .file-info {
+      display: none; align-items: center; gap: 12px;
+      background: #1e1e38; border-radius: 10px; padding: 12px 16px; margin-top: 16px;
+    }
+    .file-info.show { display: flex; }
+    .file-info .fi-name { flex: 1; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .file-info .fi-size { font-size: 0.8rem; color: #888; flex-shrink: 0; }
+    .remove-btn { background: none; border: none; color: #e040fb; cursor: pointer; font-size: 1.1rem; }
+    .remove-btn:hover { color: #ff6090; }
+
+    .preview-wrap {
+      display: none; margin-top: 20px; border-radius: 12px;
+      overflow: hidden; border: 1px solid #2a2a4a; position: relative;
+    }
+    .preview-wrap.show { display: block; }
+    video { width: 100%; display: block; max-height: 300px; background: #000; }
+    .duration-badge {
+      position: absolute; top: 10px; right: 10px;
+      background: rgba(0,0,0,0.7); color: #fff;
+      font-size: 0.78rem; padding: 3px 8px; border-radius: 20px;
+    }
+    .duration-badge.warn { background: rgba(255,80,80,0.85); }
+
+    /* ── YouTube Tab ── */
+    .yt-section { padding: 8px 0; }
+    .yt-label { font-size: 0.85rem; color: #888; margin-bottom: 10px; display: block; }
+    .yt-input-row { display: flex; gap: 0; }
+    .yt-input {
+      flex: 1; background: #1e1e38; border: 1px solid #3a3a6a;
+      border-right: none; border-radius: 10px 0 0 10px;
+      color: #e0e0f0; font-size: 0.92rem; padding: 12px 16px; outline: none;
+      transition: border-color 0.2s;
+    }
+    .yt-input:focus { border-color: #7c6aff; }
+    .yt-input::placeholder { color: #444; }
+    .yt-paste-btn {
+      background: #1e1e38; border: 1px solid #3a3a6a; border-left: none;
+      border-radius: 0 10px 10px 0; color: #7c6aff; cursor: pointer;
+      padding: 12px 14px; font-size: 0.85rem; white-space: nowrap;
+      transition: background 0.2s;
+    }
+    .yt-paste-btn:hover { background: #26264a; }
+
+    .yt-hint {
+      margin-top: 10px; font-size: 0.78rem; color: #555;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .yt-hint a { color: #7c6aff; text-decoration: none; }
+    .yt-hint a:hover { text-decoration: underline; }
+
+    .yt-preview {
+      display: none; margin-top: 16px; border-radius: 10px;
+      overflow: hidden; border: 1px solid #2a2a4a;
+    }
+    .yt-preview.show { display: block; }
+    .yt-preview iframe { width: 100%; height: 200px; display: block; border: none; }
+
+    /* ── Analyze Button ── */
+    .analyze-btn {
+      display: block; width: 100%; margin-top: 24px; padding: 14px;
+      border: none; border-radius: 12px; font-size: 1rem; font-weight: 600;
+      cursor: pointer; background: linear-gradient(135deg, #7c6aff, #e040fb);
+      color: #fff; transition: opacity 0.2s, transform 0.1s;
+    }
+    .analyze-btn:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+    .analyze-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+    /* ── Loader ── */
+    .loader { display: none; flex-direction: column; align-items: center; gap: 14px; margin-top: 28px; }
+    .loader.show { display: flex; }
+    .spinner {
+      width: 44px; height: 44px; border: 4px solid #2a2a4a;
+      border-top-color: #7c6aff; border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loader p { color: #888; font-size: 0.9rem; }
+    .loader .step-list { list-style: none; text-align: left; }
+    .loader .step-list li { font-size: 0.82rem; color: #555; padding: 2px 0; }
+    .loader .step-list li.active { color: #7c6aff; }
+    .loader .step-list li.done { color: #4dcc80; }
+
+    /* ── Result ── */
+    .result { display: none; margin-top: 28px; border-radius: 14px; overflow: hidden; border: 1px solid #2a2a4a; }
+    .result.show { display: block; }
+    .result-header { display: flex; align-items: center; gap: 14px; padding: 20px 24px; }
+    .result-header.fall    { background: linear-gradient(135deg, rgba(220,50,50,0.15), rgba(255,80,80,0.05)); border-bottom: 1px solid rgba(220,50,50,0.3); }
+    .result-header.no-fall { background: linear-gradient(135deg, rgba(40,180,100,0.15), rgba(60,220,120,0.05)); border-bottom: 1px solid rgba(40,180,100,0.3); }
+    .result-icon { font-size: 2.2rem; }
+    .result-title { font-size: 1.25rem; font-weight: 700; }
+    .result-header.fall    .result-title { color: #ff6b6b; }
+    .result-header.no-fall .result-title { color: #4dcc80; }
+    .source-badge {
+      margin-left: auto; font-size: 0.72rem; padding: 3px 10px;
+      border-radius: 20px; background: #1e1e38; color: #888;
+    }
+    .result-body { padding: 20px 24px; background: #13132a; }
+    .conf-row { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+    .conf-label { font-size: 0.82rem; color: #888; white-space: nowrap; }
+    .conf-bar-wrap { flex: 1; background: #1e1e38; border-radius: 20px; overflow: hidden; height: 10px; }
+    .conf-bar { height: 100%; border-radius: 20px; transition: width 1s ease; }
+    .conf-bar.high   { background: linear-gradient(90deg, #28b464, #4dff90); }
+    .conf-bar.medium { background: linear-gradient(90deg, #e0a020, #ffd050); }
+    .conf-bar.low    { background: linear-gradient(90deg, #cc3333, #ff6060); }
+    .conf-pct { font-weight: 700; font-size: 1rem; min-width: 42px; text-align: right; }
+    .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 18px; }
+    .detail-chip { background: #1e1e38; border-radius: 10px; padding: 12px 14px; }
+    .detail-chip .dc-label { font-size: 0.75rem; color: #666; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .detail-chip .dc-val   { font-size: 0.95rem; font-weight: 600; }
+    .explanation-box {
+      background: #1a1a30; border-left: 3px solid #7c6aff;
+      border-radius: 0 8px 8px 0; padding: 12px 16px;
+      font-size: 0.88rem; color: #bbb; line-height: 1.6;
+    }
+    .raw-toggle { margin-top: 14px; font-size: 0.8rem; color: #555; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+    .raw-toggle:hover { color: #888; }
+    .raw-box {
+      display: none; margin-top: 8px; background: #0e0e1c; border-radius: 8px;
+      padding: 12px; font-family: monospace; font-size: 0.78rem; color: #aaa;
+      white-space: pre-wrap; word-break: break-word; max-height: 180px; overflow-y: auto;
+    }
+    .raw-box.show { display: block; }
+    .error-box {
+      display: none; margin-top: 20px; background: rgba(220,50,50,0.1);
+      border: 1px solid rgba(220,50,50,0.3); border-radius: 10px;
+      padding: 14px 18px; font-size: 0.9rem; color: #ff8080;
+    }
+    .error-box.show { display: block; }
+    footer { margin-top: 40px; font-size: 0.78rem; color: #444; text-align: center; }
+    footer a { color: #7c6aff; text-decoration: none; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🎯 Fall Detection AI</h1>
+  <p>Powered by Google Gemini · Upload a video or paste a YouTube link</p>
+</header>
+
+<div class="card">
+
+  <!-- Tab Switch -->
+  <div class="tab-row">
+    <button class="tab-btn active" id="tabUpload" onclick="switchTab('upload')">📁 Upload Video</button>
+    <button class="tab-btn" id="tabYoutube" onclick="switchTab('youtube')">▶️ YouTube URL</button>
+  </div>
+
+  <!-- Tab: Upload -->
+  <div class="tab-panel active" id="panelUpload">
+    <div class="upload-zone" id="uploadZone">
+      <input type="file" id="fileInput" accept="video/mp4,video/quicktime,video/x-msvideo,video/webm,.mp4,.mov,.avi,.webm" />
+      <div class="upload-icon">📹</div>
+      <h3>Drop your video here</h3>
+      <p>MP4 · MOV · AVI · WebM &nbsp;|&nbsp; Max 30 seconds</p>
+    </div>
+    <div class="file-info" id="fileInfo">
+      <span>🎬</span>
+      <span class="fi-name" id="fiName">—</span>
+      <span class="fi-size" id="fiSize">—</span>
+      <button class="remove-btn" id="removeBtn" title="Remove">✕</button>
+    </div>
+    <div class="preview-wrap" id="previewWrap">
+      <video id="videoPreview" controls preload="metadata"></video>
+      <span class="duration-badge" id="durationBadge">Loading…</span>
+    </div>
+  </div>
+
+  <!-- Tab: YouTube -->
+  <div class="tab-panel" id="panelYoutube">
+    <div class="yt-section">
+      <span class="yt-label">Paste a YouTube video link (must be under 30 seconds — try YouTube Shorts!)</span>
+      <div class="yt-input-row">
+        <input type="url" class="yt-input" id="ytInput" placeholder="https://www.youtube.com/watch?v=... or https://youtu.be/..." />
+        <button class="yt-paste-btn" onclick="pasteFromClipboard()">📋 Paste</button>
+      </div>
+      <div class="yt-hint">
+        💡 Tip: Use <a href="https://www.youtube.com/shorts" target="_blank">YouTube Shorts</a> for short clips. Long videos will be rejected.
+      </div>
+    </div>
+    <div class="yt-preview" id="ytPreview">
+      <iframe id="ytFrame" src="" allowfullscreen></iframe>
+    </div>
+  </div>
+
+  <!-- Analyze Button -->
+  <button class="analyze-btn" id="analyzeBtn" disabled>Analyze Video</button>
+
+  <!-- Loader -->
+  <div class="loader" id="loader">
+    <div class="spinner"></div>
+    <p id="loaderMsg">Processing…</p>
+  </div>
+
+  <!-- Error -->
+  <div class="error-box" id="errorBox"></div>
+
+  <!-- Result -->
+  <div class="result" id="result">
+    <div class="result-header" id="resultHeader">
+      <span class="result-icon" id="resultIcon"></span>
+      <div>
+        <div class="result-title" id="resultTitle"></div>
+        <div style="font-size:0.8rem;color:#888;margin-top:3px">Analysis complete</div>
+      </div>
+      <span class="source-badge" id="sourceBadge"></span>
+    </div>
+    <div class="result-body">
+      <div class="conf-row">
+        <span class="conf-label">Confidence</span>
+        <div class="conf-bar-wrap"><div class="conf-bar" id="confBar" style="width:0%"></div></div>
+        <span class="conf-pct" id="confPct">0%</span>
+      </div>
+      <div class="details-grid">
+        <div class="detail-chip">
+          <div class="dc-label">Person Detected</div>
+          <div class="dc-val" id="personVal">—</div>
+        </div>
+        <div class="detail-chip">
+          <div class="dc-label">Fall Event</div>
+          <div class="dc-val" id="fallVal">—</div>
+        </div>
+      </div>
+      <div class="explanation-box" id="explanationBox"></div>
+      <div class="raw-toggle" id="rawToggle">▶ Show raw Gemini response</div>
+      <div class="raw-box" id="rawBox"></div>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  Built with <a href="https://ai.google.dev/" target="_blank">Google Gemini 1.5 Flash</a> ·
+  Fall Detection Assessment Demo
+</footer>
+
+<script>
+  const API_URL = '/analyze';
+  let activeTab = 'upload';
+  let selectedFile = null;
+  let videoDuration = null;
+
+  // Elements
+  const fileInput    = document.getElementById('fileInput');
+  const uploadZone   = document.getElementById('uploadZone');
+  const fileInfo     = document.getElementById('fileInfo');
+  const fiName       = document.getElementById('fiName');
+  const fiSize       = document.getElementById('fiSize');
+  const removeBtn    = document.getElementById('removeBtn');
+  const previewWrap  = document.getElementById('previewWrap');
+  const videoEl      = document.getElementById('videoPreview');
+  const durationBadge= document.getElementById('durationBadge');
+  const ytInput      = document.getElementById('ytInput');
+  const ytPreview    = document.getElementById('ytPreview');
+  const ytFrame      = document.getElementById('ytFrame');
+  const analyzeBtn   = document.getElementById('analyzeBtn');
+  const loader       = document.getElementById('loader');
+  const loaderMsg    = document.getElementById('loaderMsg');
+  const errorBox     = document.getElementById('errorBox');
+  const resultEl     = document.getElementById('result');
+  const resultHeader = document.getElementById('resultHeader');
+  const resultIcon   = document.getElementById('resultIcon');
+  const resultTitle  = document.getElementById('resultTitle');
+  const sourceBadge  = document.getElementById('sourceBadge');
+  const confBar      = document.getElementById('confBar');
+  const confPct      = document.getElementById('confPct');
+  const personVal    = document.getElementById('personVal');
+  const fallVal      = document.getElementById('fallVal');
+  const explanationBox = document.getElementById('explanationBox');
+  const rawToggle    = document.getElementById('rawToggle');
+  const rawBox       = document.getElementById('rawBox');
+
+  // ── Tab switch ──────────────────────────────────────────────────────────────
+  function switchTab(tab) {
+    activeTab = tab;
+    document.getElementById('tabUpload').classList.toggle('active', tab === 'upload');
+    document.getElementById('tabYoutube').classList.toggle('active', tab === 'youtube');
+    document.getElementById('panelUpload').classList.toggle('active', tab === 'upload');
+    document.getElementById('panelYoutube').classList.toggle('active', tab === 'youtube');
+    hideError(); hideResult();
+    updateAnalyzeBtn();
+  }
+
+  function updateAnalyzeBtn() {
+    if (activeTab === 'upload') {
+      analyzeBtn.disabled = !selectedFile || (videoDuration && videoDuration > 30);
+    } else {
+      analyzeBtn.disabled = !ytInput.value.trim();
+    }
+  }
+
+  // ── YouTube input ───────────────────────────────────────────────────────────
+  ytInput.addEventListener('input', () => {
+    const url = ytInput.value.trim();
+    updateAnalyzeBtn();
+    const vid = extractYouTubeId(url);
+    if (vid) {
+      ytFrame.src = `https://www.youtube.com/embed/${vid}`;
+      ytPreview.classList.add('show');
+    } else {
+      ytPreview.classList.remove('show');
+      ytFrame.src = '';
+    }
+  });
+
+  async function pasteFromClipboard() {
+    try {
+      const text = await navigator.clipboard.readText();
+      ytInput.value = text;
+      ytInput.dispatchEvent(new Event('input'));
+    } catch (e) {
+      ytInput.focus();
+    }
+  }
+
+  function extractYouTubeId(url) {
+    const patterns = [
+      /youtube\.com\/watch\?v=([\w-]+)/,
+      /youtu\.be\/([\w-]+)/,
+      /youtube\.com\/shorts\/([\w-]+)/,
+    ];
+    for (const p of patterns) {
+      const m = url.match(p);
+      if (m) return m[1];
+    }
+    return null;
+  }
+
+  // ── File upload ─────────────────────────────────────────────────────────────
+  uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+  uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+  uploadZone.addEventListener('drop', e => {
+    e.preventDefault(); uploadZone.classList.remove('drag-over');
+    const f = e.dataTransfer.files[0];
+    if (f) handleFile(f);
+  });
+  fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
+  removeBtn.addEventListener('click', resetUpload);
+
+  function handleFile(file) {
+    const allowed = ['video/mp4','video/quicktime','video/x-msvideo','video/webm','video/mpeg'];
+    if (!allowed.includes(file.type) && !file.name.match(/\.(mp4|mov|avi|webm|mpg|mpeg)$/i)) {
+      showError('Invalid file type. Please upload MP4, MOV, AVI, or WebM videos only.');
+      return;
+    }
+    selectedFile = file;
+    hideError(); hideResult();
+    fiName.textContent = file.name;
+    fiSize.textContent = formatBytes(file.size);
+    fileInfo.classList.add('show');
+    const url = URL.createObjectURL(file);
+    videoEl.src = url;
+    previewWrap.classList.add('show');
+    durationBadge.textContent = 'Loading…';
+    durationBadge.className = 'duration-badge';
+    videoEl.onloadedmetadata = () => {
+      videoDuration = videoEl.duration;
+      if (videoDuration > 30) {
+        durationBadge.textContent = `⚠ ${videoDuration.toFixed(1)}s (too long)`;
+        durationBadge.className = 'duration-badge warn';
+        showError(`Video is ${videoDuration.toFixed(1)}s. Maximum is 30 seconds.`);
+      } else {
+        durationBadge.textContent = `${videoDuration.toFixed(1)}s`;
+      }
+      updateAnalyzeBtn();
+    };
+  }
+
+  function resetUpload() {
+    selectedFile = null; videoDuration = null;
+    fileInput.value = '';
+    fileInfo.classList.remove('show');
+    previewWrap.classList.remove('show');
+    videoEl.src = '';
+    hideError(); hideResult();
+    updateAnalyzeBtn();
+  }
+
+  // ── Analyze ─────────────────────────────────────────────────────────────────
+  analyzeBtn.addEventListener('click', async () => {
+    analyzeBtn.disabled = true;
+    hideError(); hideResult();
+
+    const formData = new FormData();
+
+    if (activeTab === 'youtube') {
+      const url = ytInput.value.trim();
+      if (!url) { showError('Please enter a YouTube URL.'); analyzeBtn.disabled = false; return; }
+      formData.append('youtube_url', url);
+      showLoader('Downloading YouTube video…');
+    } else {
+      if (!selectedFile) { analyzeBtn.disabled = false; return; }
+      formData.append('video', selectedFile);
+      showLoader('Uploading video to Gemini AI…');
+    }
+
+    try {
+      setTimeout(() => { if (loader.classList.contains('show')) loaderMsg.textContent = 'Gemini is analyzing the video…'; }, 4000);
+
+      const res = await fetch(API_URL, { method: 'POST', body: formData });
+      const data = await res.json();
+      hideLoader();
+
+      if (!res.ok) {
+        showError(data.detail || 'An error occurred. Please try again.');
+        return;
+      }
+      displayResult(data);
+    } catch (err) {
+      hideLoader();
+      showError('Network error: Could not reach the server. Make sure the backend is running on port 8000.');
+    } finally {
+      updateAnalyzeBtn();
+    }
+  });
+
+  // ── Display result ──────────────────────────────────────────────────────────
+  function displayResult(data) {
+    if (data.fall_detected) {
+      resultHeader.className = 'result-header fall';
+      resultIcon.textContent = '🚨';
+      resultTitle.textContent = 'Fall Detected!';
+    } else {
+      resultHeader.className = 'result-header no-fall';
+      resultIcon.textContent = '✅';
+      resultTitle.textContent = 'No Fall Detected';
+    }
+    sourceBadge.textContent = data.source === 'youtube' ? '▶️ YouTube' : '📁 Upload';
+
+    const pct = Math.min(100, Math.max(0, data.confidence));
+    confBar.className = 'conf-bar ' + (pct >= 80 ? 'high' : pct >= 55 ? 'medium' : 'low');
+    confPct.textContent = pct + '%';
+    setTimeout(() => confBar.style.width = pct + '%', 50);
+
+    personVal.textContent = data.person_detected ? '✔ Yes' : '✘ No';
+    personVal.style.color  = data.person_detected ? '#4dcc80' : '#ff6b6b';
+    fallVal.textContent    = data.fall_detected   ? '⚠ Yes'  : '✔ No';
+    fallVal.style.color    = data.fall_detected   ? '#ff6b6b' : '#4dcc80';
+
+    explanationBox.textContent = data.explanation || 'No explanation provided.';
+    rawBox.textContent = data.raw_response || '';
+    resultEl.classList.add('show');
+    resultEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  rawToggle.addEventListener('click', () => {
+    rawBox.classList.toggle('show');
+    rawToggle.textContent = rawBox.classList.contains('show')
+      ? '▼ Hide raw Gemini response' : '▶ Show raw Gemini response';
+  });
+
+  function showLoader(msg) { loaderMsg.textContent = msg; loader.classList.add('show'); }
+  function hideLoader()    { loader.classList.remove('show'); }
+  function showError(msg)  { errorBox.textContent = '⚠ ' + msg; errorBox.classList.add('show'); }
+  function hideError()     { errorBox.classList.remove('show'); }
+  function hideResult()    { resultEl.classList.remove('show'); confBar.style.width = '0%'; }
+  function formatBytes(b) {
+    if (b < 1024) return b + ' B';
+    if (b < 1024*1024) return (b/1024).toFixed(1) + ' KB';
+    return (b/1024/1024).toFixed(1) + ' MB';
+  }
+</script>
+</body>
+</html>
